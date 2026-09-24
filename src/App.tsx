@@ -3,6 +3,7 @@ import { Header } from './components/Header';
 import { SingaporeMap } from './components/SingaporeMap';
 import { LocationOverview } from './components/LocationOverview';
 import { AttributionModal } from './components/AttributionModal';
+import { ApiHealthModal } from './components/ApiHealthModal';
 import {
   WeatherResponse,
   RainResponse,
@@ -32,11 +33,28 @@ function Dashboard() {
   // Mobile view tab toggle: 'intel' (all location info) vs 'map' (Singapore map)
   const [mobileTab, setMobileTab] = useState<'intel' | 'map'>('intel');
 
-  // Attribution modal state
+  // Attribution and Health modal state
   const [isAttributionOpen, setIsAttributionOpen] = useState<boolean>(false);
+  const [isHealthModalOpen, setIsHealthModalOpen] = useState<boolean>(false);
+  const [isCheckingHealth, setIsCheckingHealth] = useState<boolean>(false);
 
   // Auto-refresh interval ref
   const autoRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const runHealthCheck = useCallback(async (forceFresh = true) => {
+    setIsCheckingHealth(true);
+    try {
+      const res = await fetch(`/api/health?refresh=${forceFresh}`);
+      if (res.ok) {
+        const data = await res.json();
+        setHealthData(data);
+      }
+    } catch (err) {
+      console.error('Failed to run health check', err);
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  }, []);
 
   const fetchAllData = useCallback(async (forceFresh = false) => {
     setIsLoading(true);
@@ -190,6 +208,10 @@ function Dashboard() {
         maxRainfall={rainData?.maxRainfall ?? 0}
         selectedStationName={selectedStationName}
         onOpenAttribution={() => setIsAttributionOpen(true)}
+        onOpenHealth={() => {
+          setIsHealthModalOpen(true);
+          runHealthCheck(true);
+        }}
       />
 
       {/* Mobile Screen Segmented Tab Switcher (Visible on small screens) */}
@@ -278,6 +300,15 @@ function Dashboard() {
       <AttributionModal
         isOpen={isAttributionOpen}
         onClose={() => setIsAttributionOpen(false)}
+      />
+
+      {/* API Health Check Diagnostic Modal */}
+      <ApiHealthModal
+        isOpen={isHealthModalOpen}
+        onClose={() => setIsHealthModalOpen(false)}
+        health={healthData}
+        onRunHealthCheck={() => runHealthCheck(true)}
+        isLoading={isCheckingHealth}
       />
     </div>
   );

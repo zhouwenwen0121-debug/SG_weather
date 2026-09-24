@@ -531,30 +531,98 @@ export async function getHazeData(forceFresh = false) {
 }
 
 /**
- * 4. GET HEALTH STATUS
+ * 4. GET HEALTH STATUS & DIAGNOSTICS FUNCTION
+ * Pings official NEA / data.gov.sg endpoints, measures latencies, and assesses system health
  */
-export async function getHealthData() {
-  const [tRes, rRes, pRes] = await Promise.all([
-    fetchOfficial('air-temperature'),
-    fetchOfficial('rainfall'),
-    fetchOfficial('psi'),
-  ]);
+const serverStartTime = Date.now();
 
-  const endpoints = {
-    airTemperature: tRes.status,
-    rainfall: rRes.status,
-    psi: pRes.status,
-  };
+export async function getHealthData(forceFresh = false) {
+  const now = Date.now();
+  if (!forceFresh && cache.health.data && now < cache.health.expiresAt) {
+    return cache.health.data;
+  }
 
-  const upstreamOk = tRes.ok && rRes.ok && pRes.ok;
+  const checkTargets = [
+    { name: 'Air Temperature Telemetry', endpoint: 'air-temperature' },
+    { name: 'Rainfall Gauges & Rate', endpoint: 'rainfall' },
+    { name: 'Relative Humidity', endpoint: 'relative-humidity' },
+    { name: 'Wind Direction Vectors', endpoint: 'wind-direction' },
+    { name: 'Wind Velocity', endpoint: 'wind-speed' },
+    { name: '2-Hour Micro-Climate Forecast', endpoint: '2-hour-weather-forecast' },
+    { name: '24-Hour Regional Outlook', endpoint: '24-hour-weather-forecast' },
+    { name: '4-Day Islandwide Forecast', endpoint: '4-day-weather-forecast' },
+    { name: 'Air Quality & PSI / PM2.5', endpoint: 'psi' },
+  ];
+
+  const overallStart = Date.now();
+
+  const results = await Promise.all(
+    checkTargets.map(async (target) => {
+      const epStart = Date.now();
+      const res = await fetchOfficial(target.endpoint);
+      const latencyMs = Date.now() - epStart;
+      return {
+        name: target.name,
+        endpoint: `/v1/environment/${target.endpoint}`,
+        status: res.status,
+        ok: res.ok,
+        latencyMs,
+        source: 'data.gov.sg / NEA',
+      };
+    })
+  );
+
+  const totalLatencyMs = Date.now() - overallStart;
+  const okCount = results.filter((r) => r.ok).length;
+  const totalCount = results.length;
+  const allOk = okCount === totalCount;
+  const partialOk = okCount > 0;
+
+  const status = allOk ? 'healthy' : partialOk ? 'degraded' : 'unhealthy';
   const hasKey = Boolean(process.env.DATA_GOV_SG_API_KEY || process.env.NEA_API_KEY);
 
-  return {
+  const mem = process.memoryUsage();
+  const uptimeSeconds = Math.floor((Date.now() - serverStartTime) / 1000);
+
+  const endpointsMap = {};
+  results.forEach((r) => {
+    endpointsMap[r.endpoint.replace('/v1/environment/', '')] = r.status;
+  });
+
+  const healthResult = {
+    status,
     keyConfigured: hasKey,
-    upstreamOk,
-    upstreamStatus: upstreamOk ? 200 : Math.max(tRes.status, rRes.status, pRes.status),
-    endpoints,
+    upstreamOk: allOk || partialOk,
+    upstreamStatus: allOk ? 200 : (partialOk ? 207 : 503),
+    latencyMs: totalLatencyMs,
+    healthyEndpointsCount: okCount,
+    totalEndpointsCount: totalCount,
     service: 'Singapore NEA / data.gov.sg Weather Gateway',
+    version: '1.2.0',
+    uptimeSeconds,
+    system: {
+      nodeVersion: process.version,
+      platform: process.platform,
+      memoryMb: {
+        rss: Math.round(mem.rss / 1024 / 1024 * 10) / 10,
+        heapUsed: Math.round(mem.heapUsed / 1024 / 1024 * 10) / 10,
+        heapTotal: Math.round(mem.heapTotal / 1024 / 1024 * 10) / 10,
+      },
+    },
+    cacheStatus: {
+      weatherCached: Boolean(cache.weather.data && Date.now() < cache.weather.expiresAt),
+      rainCached: Boolean(cache.rain.data && Date.now() < cache.rain.expiresAt),
+      hazeCached: Boolean(cache.haze.data && Date.now() < cache.haze.expiresAt),
+    },
+    endpoints: endpointsMap,
+    detailedEndpoints: results,
     timestamp: new Date().toISOString(),
   };
+
+  cache.health = {
+    data: healthResult,
+    expiresAt: Date.now() + 15 * 1000, // 15 seconds TTL for health cache
+  };
+
+  return healthResult;
 }

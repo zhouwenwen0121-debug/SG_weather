@@ -161,15 +161,43 @@ export interface HazeResponse {
   fromCache?: boolean;
 }
 
+export interface EndpointHealth {
+  name: string;
+  endpoint: string;
+  status: number;
+  ok: boolean;
+  latencyMs: number;
+  source: string;
+}
+
 export interface HealthResponse {
+  status: 'healthy' | 'degraded' | 'unhealthy';
   keyConfigured: boolean;
   upstreamOk: boolean;
   upstreamStatus: number;
-  endpoints: {
-    airTemperature?: number;
-    rainfall?: number;
-    psi?: number;
-  };
+  latencyMs?: number;
+  healthyEndpointsCount?: number;
+  totalEndpointsCount?: number;
   service: string;
+  version?: string;
+  uptimeSeconds?: number;
+  system?: {
+    nodeVersion: string;
+    platform: string;
+    memoryMb: {
+      rss: number;
+      heapUsed: number;
+      heapTotal: number;
+    };
+  };
+  cacheStatus?: {
+    weatherCached: boolean;
+    rainCached: boolean;
+    hazeCached: boolean;
+  };
+  endpoints: Record<string, number | undefined>;
+  detailedEndpoints?: EndpointHealth[];
   timestamp: string;
+  error?: string;
+  details?: string;
 }

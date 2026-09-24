@@ -27,6 +27,7 @@ interface HeaderProps {
   maxRainfall: number;
   selectedStationName: string | null;
   onOpenAttribution: () => void;
+  onOpenHealth: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -41,8 +42,12 @@ export const Header: React.FC<HeaderProps> = ({
   maxRainfall,
   selectedStationName,
   onOpenAttribution,
+  onOpenHealth,
 }) => {
   const { toggleTheme, isDark } = useTheme();
+
+  const isHealthy = health?.status === 'healthy' || (health?.upstreamOk && health?.status !== 'degraded');
+  const isDegraded = health?.status === 'degraded';
 
   return (
     <header className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 z-40 transition-colors shadow-xs shrink-0 select-none">
@@ -106,13 +111,31 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Right Action Controls: Active Location Tag, Dark/Bright Mode, Refresh & Info */}
+          {/* Right Action Controls: Active Location Tag, Health Check, Dark/Bright Mode, Refresh & Info */}
           <div className="flex items-center gap-1.5 sm:gap-2 text-xs">
             {/* Active Selected Location Display Badge */}
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-300 font-bold max-w-[140px] sm:max-w-[200px] truncate shadow-xs">
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-300 font-bold max-w-[140px] sm:max-w-[180px] truncate shadow-xs">
               <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
               <span className="truncate">{selectedStationName || 'Singapore'}</span>
             </div>
+
+            {/* API Health Check Diagnostic Button */}
+            <button
+              onClick={onOpenHealth}
+              title={`API Health: ${health?.status || (health?.upstreamOk ? 'Healthy' : 'Unknown')} (${health?.latencyMs !== undefined ? `${health.latencyMs}ms` : 'Click to inspect'})`}
+              className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold cursor-pointer transition-all shadow-xs"
+            >
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  isHealthy ? 'bg-emerald-400' : isDegraded ? 'bg-amber-400' : 'bg-red-400'
+                }`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                  isHealthy ? 'bg-emerald-500' : isDegraded ? 'bg-amber-500' : 'bg-red-500'
+                }`}></span>
+              </span>
+              <span className="hidden sm:inline">Health Check</span>
+              <span className="sm:hidden">Health</span>
+            </button>
 
             {/* Bright / Dark Mode Toggle */}
             <button

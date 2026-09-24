@@ -67,21 +67,30 @@ async function startServer() {
     }
   });
 
-  // 4. Health Check API Route
-  app.get('/api/health', async (_req, res) => {
+  // 4. Health Check API Route with on-demand diagnostics
+  app.get('/api/health', async (req, res) => {
     try {
-      const data = await getHealthData();
+      const forceFresh = req.query.refresh === 'true' || req.query.fresh === 'true';
+      const data = await getHealthData(forceFresh);
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.status(data.upstreamOk ? 200 : 503).json(data);
     } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
       res.status(503).json({
+        status: 'unhealthy',
         keyConfigured: Boolean(process.env.DATA_GOV_SG_API_KEY || process.env.NEA_API_KEY),
         upstreamOk: false,
         upstreamStatus: 503,
         error: 'Health check failed communicating with official weather sources',
+        details: errorMsg,
         timestamp: new Date().toISOString(),
       });
     }
+  });
+
+  // Standard healthz endpoint for load balancers / cloud platforms
+  app.get('/healthz', (_req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
   // Vite middleware in dev or static files in production
