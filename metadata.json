@@ -1,0 +1,6 @@
+{
+  "name": "Singapore Weather & Rain Radar",
+  "description": "Live Singapore weather conditions, rainfall radar, PSI air quality, and NEA weather station observations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
