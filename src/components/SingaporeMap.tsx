@@ -8,11 +8,12 @@ import {
   Wind,
   ShieldAlert,
   Info,
-  Compass,
   MapPin,
   X,
-  Search,
-  Check,
+  ChevronLeft,
+  ChevronRight,
+  Droplets,
+  Compass,
 } from 'lucide-react';
 import {
   projectGeoToSvg,
@@ -21,7 +22,6 @@ import {
   RESERVOIRS,
   SVG_WIDTH,
   SVG_HEIGHT,
-  formatTimeSGT,
 } from '../utils/geo';
 import { WeatherStation, RainStation, HazeRegion, TwoHourAreaForecast } from '../types/weather';
 import { useTheme } from '../context/ThemeContext';
@@ -47,10 +47,19 @@ const POPULAR_LOCATIONS = [
   { id: 'S44', label: 'Jurong West' },
   { id: 'S104', label: 'Woodlands' },
   { id: 'S117', label: 'Clementi' },
-  { id: 'S111', label: 'Newton/Orchard' },
+  { id: 'S111', label: 'Newton / Orchard' },
   { id: 'S106', label: 'Pulau Ubin' },
   { id: 'S43', label: 'Tai Seng' },
 ];
+
+// Region click mapping to primary station
+const REGION_STATION_MAP: Record<string, string> = {
+  NORTH: 'S104',
+  WEST: 'S44',
+  CENTRAL: 'S109',
+  EAST: 'S24',
+  SOUTH: 'S108',
+};
 
 export const SingaporeMap: React.FC<SingaporeMapProps> = ({
   weatherStations,
@@ -66,7 +75,6 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [hoveredStation, setHoveredStation] = useState<any | null>(null);
-  const [searchFilter, setSearchFilter] = useState('');
 
   // Combine weather stations with rain data for unified map markers
   const combinedStations = useMemo(() => {
@@ -84,6 +92,7 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
           rainfall: rain ? rain.rainfall : (w.rainfall ?? 0),
           hourlyRate: rain ? rain.hourlyRate : (w.rainfall ? w.rainfall * 12 : 0),
           intensity: rain ? rain.intensity : (w.rainfall && w.rainfall > 0 ? 'light' : 'none'),
+          intensityLabel: rain ? rain.intensityLabel : (w.rainfall && w.rainfall > 0 ? 'Light' : 'No Rain'),
         });
       }
     });
@@ -104,12 +113,13 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
           rainfall: r.rainfall,
           hourlyRate: r.hourlyRate,
           intensity: r.intensity,
+          intensityLabel: r.intensityLabel,
           lastObserved: new Date().toISOString(),
         });
       }
     });
 
-    return Array.from(map.values());
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [weatherStations, rainStations]);
 
   // Selected station
@@ -117,6 +127,38 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
     if (!selectedStationId) return null;
     return combinedStations.find((s) => s.id === selectedStationId) || null;
   }, [selectedStationId, combinedStations]);
+
+  // Find nearest forecast area for the active station
+  const activeForecast = useMemo(() => {
+    if (!activeStation || !activeStation.latitude || !activeStation.longitude) return null;
+    let closest: TwoHourAreaForecast | null = null;
+    let minDist = Infinity;
+    for (const a of twoHourAreas) {
+      if (a.latitude && a.longitude) {
+        const dist = Math.hypot(a.latitude - activeStation.latitude, a.longitude - activeStation.longitude);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = a;
+        }
+      }
+    }
+    return closest;
+  }, [activeStation, twoHourAreas]);
+
+  // Toggle prev/next station directly from map
+  const handleCycleStation = (direction: 'next' | 'prev') => {
+    if (combinedStations.length === 0) return;
+    const currentIndex = combinedStations.findIndex((s) => s.id === selectedStationId);
+    let nextIndex = 0;
+    if (currentIndex === -1) {
+      nextIndex = 0;
+    } else if (direction === 'next') {
+      nextIndex = currentIndex >= combinedStations.length - 1 ? 0 : currentIndex + 1;
+    } else {
+      nextIndex = currentIndex <= 0 ? combinedStations.length - 1 : currentIndex - 1;
+    }
+    onSelectStation(combinedStations[nextIndex].id);
+  };
 
   // Rainfall color mapping
   const getRainMarkerColor = (intensity: string, rainfall: number) => {
@@ -151,16 +193,16 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
 
   const handleToggleStation = (stationId: string) => {
     if (selectedStationId === stationId) {
-      onSelectStation(null);
+      onSelectStation(null); // Toggle off if already active
     } else {
-      onSelectStation(stationId);
+      onSelectStation(stationId); // Toggle on
     }
   };
 
   return (
     <div className="relative w-full h-full flex flex-col bg-white dark:bg-slate-950 overflow-hidden select-none transition-colors">
-      {/* Top Map Toolbar: Layers, Quick Location Toggle Bar, Zoom */}
-      <div className="z-20 p-2.5 sm:p-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 space-y-2 shrink-0 shadow-xs">
+      {/* Top Map Toolbar: Layers, Location Toggle Controls, Zoom */}
+      <div className="z-20 p-2 sm:p-2.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 space-y-2 shrink-0 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-2">
           {/* Layer Selector */}
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
@@ -216,8 +258,55 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
             </button>
           </div>
 
-          {/* Zoom Controls */}
+          {/* Location Toggle Selector & Prev/Next Navigator */}
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 px-1.5 flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5 text-blue-500" />
+              <span className="hidden sm:inline">Toggle:</span>
+            </span>
+
+            <button
+              onClick={() => handleCycleStation('prev')}
+              title="Previous location on map"
+              className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+
+            <select
+              value={selectedStationId || ''}
+              onChange={(e) => onSelectStation(e.target.value ? e.target.value : null)}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-semibold rounded-lg px-2 py-1 max-w-[150px] sm:max-w-[200px] truncate cursor-pointer focus:outline-none focus:border-blue-500"
+            >
+              <option value="">Islandwide (None)</option>
+              {combinedStations.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name} {st.temperature !== null ? `(${st.temperature}°C)` : ''} {st.rainfall > 0 ? `• ${st.rainfall}mm rain` : ''}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={() => handleCycleStation('next')}
+              title="Next location on map"
+              className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+
+            {selectedStationId && (
+              <button
+                onClick={() => onSelectStation(null)}
+                title="Clear selected location"
+                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Zoom Controls */}
+          <div className="hidden sm:flex items-center gap-1 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
             <button
               onClick={() => handleZoom(0.25)}
               title="Zoom in"
@@ -242,11 +331,10 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
           </div>
         </div>
 
-        {/* Quick Location Toggle Bar */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1 text-xs">
-          <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
-            <MapPin className="w-3 h-3 text-blue-500" />
-            Toggle Location:
+        {/* Quick Location Pills Bar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5 text-xs">
+          <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0 mr-0.5">
+            Quick Toggle:
           </span>
 
           {POPULAR_LOCATIONS.map((loc) => {
@@ -255,9 +343,9 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
               <button
                 key={loc.id}
                 onClick={() => handleToggleStation(loc.id)}
-                className={`px-2.5 py-1 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer border ${
+                className={`px-2.5 py-0.5 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer border text-[11px] ${
                   isSelected
-                    ? 'bg-blue-600 text-white border-blue-500 shadow-sm shadow-blue-500/30'
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-sm shadow-blue-500/30 ring-1 ring-blue-400'
                     : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                 }`}
               >
@@ -265,19 +353,10 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
               </button>
             );
           })}
-
-          {selectedStationId && (
-            <button
-              onClick={() => onSelectStation(null)}
-              className="px-2 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-slate-700 dark:hover:text-white underline cursor-pointer shrink-0 ml-1"
-            >
-              Clear
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Main SVG Visualization Canvas filling remaining flex height */}
+      {/* Main SVG Visualization Canvas */}
       <div className="flex-1 w-full relative flex items-center justify-center bg-gradient-to-b from-sky-50 via-slate-50 to-blue-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 overflow-hidden">
         <svg
           viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
@@ -311,6 +390,11 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
+            </filter>
+
+            {/* Filter for toggled station target pin */}
+            <filter id="targetGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#3b82f6" floodOpacity="0.8" />
             </filter>
 
             {/* Water body pattern */}
@@ -388,13 +472,53 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
             </path>
           ))}
 
-          {/* Regional Planning Labels */}
-          <g fontSize="10" fontWeight="600" fill={isDark ? '#64748b' : '#475569'} letterSpacing="1">
-            <text x="375" y="85" textAnchor="middle">NORTH</text>
-            <text x="210" y="210" textAnchor="middle">WEST</text>
-            <text x="425" y="215" textAnchor="middle">CENTRAL</text>
-            <text x="640" y="210" textAnchor="middle">EAST</text>
-            <text x="440" y="340" textAnchor="middle">SOUTH</text>
+          {/* Clickable Regional Planning Labels: Clicking a region toggles its core station */}
+          <g fontSize="10" fontWeight="700" fill={isDark ? '#64748b' : '#475569'} letterSpacing="1">
+            <text
+              x="375"
+              y="85"
+              textAnchor="middle"
+              className="cursor-pointer hover:fill-blue-500 transition-colors"
+              onClick={() => handleToggleStation(REGION_STATION_MAP.NORTH)}
+            >
+              NORTH 📍
+            </text>
+            <text
+              x="210"
+              y="210"
+              textAnchor="middle"
+              className="cursor-pointer hover:fill-blue-500 transition-colors"
+              onClick={() => handleToggleStation(REGION_STATION_MAP.WEST)}
+            >
+              WEST 📍
+            </text>
+            <text
+              x="425"
+              y="215"
+              textAnchor="middle"
+              className="cursor-pointer hover:fill-blue-500 transition-colors"
+              onClick={() => handleToggleStation(REGION_STATION_MAP.CENTRAL)}
+            >
+              CENTRAL 📍
+            </text>
+            <text
+              x="640"
+              y="210"
+              textAnchor="middle"
+              className="cursor-pointer hover:fill-blue-500 transition-colors"
+              onClick={() => handleToggleStation(REGION_STATION_MAP.EAST)}
+            >
+              EAST 📍
+            </text>
+            <text
+              x="440"
+              y="340"
+              textAnchor="middle"
+              className="cursor-pointer hover:fill-blue-500 transition-colors"
+              onClick={() => handleToggleStation(REGION_STATION_MAP.SOUTH)}
+            >
+              SOUTH 📍
+            </text>
           </g>
 
           {/* LAYER 1: RAIN */}
@@ -447,17 +571,28 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                     onMouseEnter={() => setHoveredStation(station)}
                     onMouseLeave={() => setHoveredStation(null)}
                   >
+                    {/* Generous invisible click target (r=22) so clicks always register */}
+                    <circle cx={pt.x} cy={pt.y} r="22" fill="transparent" />
+
                     {/* Targeting reticle if selected */}
                     {isSelected && (
-                      <g className="animate-spin-slow">
+                      <g>
                         <circle
                           cx={pt.x}
                           cy={pt.y}
-                          r="16"
+                          r="18"
                           fill="none"
                           stroke="#3b82f6"
-                          strokeWidth="1.5"
-                          strokeDasharray="3 3"
+                          strokeWidth="2"
+                          strokeDasharray="4 4"
+                          className="animate-spin-slow"
+                        />
+                        <circle
+                          cx={pt.x}
+                          cy={pt.y}
+                          r="26"
+                          fill="rgba(59,130,246,0.15)"
+                          className="animate-pulse"
                         />
                       </g>
                     )}
@@ -477,7 +612,7 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                     <circle
                       cx={pt.x}
                       cy={pt.y}
-                      r={isSelected ? 8 : hasRain ? 6 : 4.5}
+                      r={isSelected ? 9 : hasRain ? 6 : 4.5}
                       fill={isSelected ? '#3b82f6' : colors.fill}
                       stroke={isSelected ? '#ffffff' : colors.stroke}
                       strokeWidth={isSelected ? 2.5 : 1.5}
@@ -491,25 +626,25 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                     {(hasRain || isSelected) && (
                       <g>
                         <rect
-                          x={pt.x - 34}
-                          y={pt.y - 22}
-                          width="68"
-                          height="16"
+                          x={pt.x - 36}
+                          y={pt.y - 24}
+                          width="72"
+                          height="17"
                           rx="4"
                           fill={isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)'}
                           stroke={isSelected ? '#3b82f6' : colors.stroke}
-                          strokeWidth={isSelected ? 1.5 : 0.8}
+                          strokeWidth={isSelected ? 1.8 : 0.8}
                           className="filter drop-shadow-sm"
                         />
                         <text
                           x={pt.x}
-                          y={pt.y - 11}
+                          y={pt.y - 12}
                           fontSize="8"
                           fontWeight="700"
                           fill={isDark ? '#ffffff' : '#0f172a'}
                           textAnchor="middle"
                         >
-                          {station.name.slice(0, 9)}: {station.rainfall > 0 ? `${station.rainfall}mm` : '0mm'}
+                          {station.name.slice(0, 10)}: {station.rainfall > 0 ? `${station.rainfall}mm` : '0mm'}
                         </text>
                       </g>
                     )}
@@ -536,22 +671,25 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                     onMouseEnter={() => setHoveredStation(station)}
                     onMouseLeave={() => setHoveredStation(null)}
                   >
+                    {/* Generous invisible click target */}
+                    <circle cx={pt.x} cy={pt.y} r="22" fill="transparent" />
+
                     {isSelected && (
                       <circle
                         cx={pt.x}
                         cy={pt.y}
-                        r="18"
+                        r="20"
                         fill="none"
-                        stroke="#ffffff"
-                        strokeWidth="2"
-                        strokeDasharray="3 3"
+                        stroke="#3b82f6"
+                        strokeWidth="2.5"
+                        strokeDasharray="4 4"
                         className="animate-spin-slow"
                       />
                     )}
                     <circle
                       cx={pt.x}
                       cy={pt.y}
-                      r={isSelected ? 15 : 11}
+                      r={isSelected ? 16 : 11}
                       fill={color}
                       fillOpacity={isDark ? '0.85' : '0.92'}
                       stroke={isSelected ? '#ffffff' : isDark ? '#0f172a' : '#ffffff'}
@@ -593,7 +731,14 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                 }
 
                 return (
-                  <g key={`haze-${region.id}`} className="transition-all hover:scale-110">
+                  <g
+                    key={`haze-${region.id}`}
+                    className="transition-all hover:scale-110 cursor-pointer"
+                    onClick={() => {
+                      const stId = REGION_STATION_MAP[region.id.toUpperCase()];
+                      if (stId) handleToggleStation(stId);
+                    }}
+                  >
                     <circle
                       cx={pt.x}
                       cy={pt.y}
@@ -657,6 +802,9 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                     onMouseEnter={() => setHoveredStation(station)}
                     onMouseLeave={() => setHoveredStation(null)}
                   >
+                    {/* Generous invisible click target */}
+                    <circle cx={pt.x} cy={pt.y} r="22" fill="transparent" />
+
                     <g transform={`translate(${pt.x}, ${pt.y}) rotate(${rot})`}>
                       <line x1="0" y1="8" x2="0" y2="-12" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
                       <polygon points="0,-16 -4,-9 4,-9" fill="#10b981" />
@@ -664,10 +812,10 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                     <circle
                       cx={pt.x}
                       cy={pt.y}
-                      r="4"
+                      r={isSelected ? 6 : 4}
                       fill={isDark ? '#0f172a' : '#ffffff'}
-                      stroke="#10b981"
-                      strokeWidth="1"
+                      stroke={isSelected ? '#3b82f6' : '#10b981'}
+                      strokeWidth={isSelected ? 2 : 1}
                     />
                     <rect
                       x={pt.x - 18}
@@ -676,8 +824,8 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                       height="12"
                       rx="3"
                       fill={isDark ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.92)'}
-                      stroke="#10b981"
-                      strokeWidth="0.5"
+                      stroke={isSelected ? '#3b82f6' : '#10b981'}
+                      strokeWidth={isSelected ? 1.5 : 0.5}
                     />
                     <text
                       x={pt.x}
@@ -694,13 +842,106 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
               })}
             </g>
           )}
+
+          {/* Prominent Beacon Pin for Toggled Location */}
+          {activeStation && activeStation.latitude && activeStation.longitude && (
+            (() => {
+              const pt = projectGeoToSvg(activeStation.latitude, activeStation.longitude);
+              return (
+                <g className="pointer-events-none" filter="url(#targetGlow)">
+                  {/* Outer Pulsing Beacon Wave */}
+                  <circle
+                    cx={pt.x}
+                    cy={pt.y}
+                    r="32"
+                    fill="none"
+                    stroke="#3b82f6"
+                    strokeWidth="1.5"
+                    className="animate-ping"
+                  />
+                  {/* Drop Pin Icon */}
+                  <g transform={`translate(${pt.x - 12}, ${pt.y - 36})`}>
+                    <path
+                      d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24s12-15 12-24c0-6.627-5.373-12-12-12zm0 17a5 5 0 110-10 5 5 0 010 10z"
+                      fill="#2563eb"
+                      stroke="#ffffff"
+                      strokeWidth="1.5"
+                    />
+                  </g>
+                </g>
+              );
+            })()
+          )}
         </svg>
 
-        {/* Quick Location Tap Reminder Pill */}
-        <div className="absolute bottom-3 left-3 z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-300 shadow-sm flex items-center gap-1.5 pointer-events-none">
-          <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-          <span>Click any marker on the map to toggle its weather details</span>
-        </div>
+        {/* Floating In-Map Location HUD Card when a station is toggled */}
+        {activeStation && (
+          <div className="absolute top-3 left-3 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-3 rounded-2xl border border-blue-500/40 shadow-xl max-w-[280px] sm:max-w-xs animate-in fade-in slide-in-from-top-2 text-xs transition-colors">
+            <div className="flex items-start justify-between gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2 mb-2">
+              <div>
+                <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/20">
+                  {activeStation.id}
+                </span>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-1 leading-snug">
+                  {activeStation.name}
+                </h4>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleCycleStation('next')}
+                  title="Toggle next location"
+                  className="p-1 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => onSelectStation(null)}
+                  title="Close location HUD"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-2 gap-1.5">
+              <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50">
+                <span className="text-slate-500 dark:text-slate-400 text-[10px] flex items-center gap-1">
+                  <Thermometer className="w-3 h-3 text-amber-500" /> Temperature
+                </span>
+                <span className="text-base font-extrabold text-slate-900 dark:text-white mt-0.5 block">
+                  {activeStation.temperature !== null ? `${activeStation.temperature}°C` : '--'}
+                </span>
+              </div>
+
+              <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50">
+                <span className="text-slate-500 dark:text-slate-400 text-[10px] flex items-center gap-1">
+                  <CloudRain className="w-3 h-3 text-blue-500" /> Rainfall
+                </span>
+                <span className="text-base font-extrabold text-slate-900 dark:text-white mt-0.5 block">
+                  {activeStation.rainfall !== null ? `${activeStation.rainfall} mm` : '0 mm'}
+                </span>
+              </div>
+            </div>
+
+            {activeForecast && (
+              <div className="mt-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                <span className="text-slate-500 dark:text-slate-400">Forecast ({activeForecast.area}):</span>
+                <span className="font-bold text-blue-600 dark:text-blue-400">{activeForecast.forecast}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Quick Tap Reminder pill at bottom-left when no station is selected */}
+        {!activeStation && (
+          <div className="absolute bottom-3 left-3 z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-300 shadow-sm flex items-center gap-1.5 pointer-events-none">
+            <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+            <span>Click any marker or region to toggle its location details</span>
+          </div>
+        )}
       </div>
     </div>
   );
