@@ -192,11 +192,7 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
   };
 
   const handleToggleStation = (stationId: string) => {
-    if (selectedStationId === stationId) {
-      onSelectStation(null); // Toggle off if already active
-    } else {
-      onSelectStation(stationId); // Toggle on
-    }
+    onSelectStation(stationId);
   };
 
   return (
@@ -274,11 +270,10 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
             </button>
 
             <select
-              value={selectedStationId || ''}
-              onChange={(e) => onSelectStation(e.target.value ? e.target.value : null)}
+              value={selectedStationId || (combinedStations[0]?.id ?? '')}
+              onChange={(e) => onSelectStation(e.target.value)}
               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white text-xs font-semibold rounded-lg px-2 py-1 max-w-[150px] sm:max-w-[200px] truncate cursor-pointer focus:outline-none focus:border-blue-500"
             >
-              <option value="">Islandwide (None)</option>
               {combinedStations.map((st) => (
                 <option key={st.id} value={st.id}>
                   {st.name} {st.temperature !== null ? `(${st.temperature}°C)` : ''} {st.rainfall > 0 ? `• ${st.rainfall}mm rain` : ''}
@@ -293,16 +288,6 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
             >
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
-
-            {selectedStationId && (
-              <button
-                onClick={() => onSelectStation(null)}
-                title="Clear selected location"
-                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
           </div>
 
           {/* Zoom Controls */}

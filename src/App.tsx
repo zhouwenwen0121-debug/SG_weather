@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Header } from './components/Header';
 import { SingaporeMap } from './components/SingaporeMap';
-import { LocationDetailPanel } from './components/LocationDetailPanel';
+import { LocationOverview } from './components/LocationOverview';
 import { AttributionModal } from './components/AttributionModal';
-import { WeatherResponse, RainResponse, HazeResponse, HealthResponse } from './types/weather';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import {
+  WeatherResponse,
+  RainResponse,
+  HazeResponse,
+  HealthResponse,
+  WeatherStation,
+  RainStation,
+} from './types/weather';
+import { AlertTriangle, RefreshCw, MapPin, Map as MapIcon } from 'lucide-react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes auto-refresh
@@ -19,11 +26,11 @@ function Dashboard() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Selected station ID for the location toggle panel
-  const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
+  // Default to Marina Barrage (City / Downtown), or will fallback to first available
+  const [selectedStationId, setSelectedStationId] = useState<string>('S108');
 
-  // Whether location info panel is open (defaults to true for immediate location discovery, toggleable)
-  const [isPanelOpen, setIsPanelOpen] = useState<boolean>(true);
+  // Mobile view tab toggle: 'intel' (all location info) vs 'map' (Singapore map)
+  const [mobileTab, setMobileTab] = useState<'intel' | 'map'>('intel');
 
   // Attribution modal state
   const [isAttributionOpen, setIsAttributionOpen] = useState<boolean>(false);
@@ -89,22 +96,77 @@ function Dashboard() {
     };
   }, [fetchAllData]);
 
-  // Handle station selection toggle from map
+  // Combine weather stations with rain data for unified Singapore locations
+  const combinedStations = useMemo(() => {
+    const weatherList = weatherData?.stations ?? [];
+    const rainList = rainData?.stations ?? [];
+
+    const rainMap = new Map<string, RainStation>();
+    rainList.forEach((r) => rainMap.set(r.id, r));
+
+    const map = new Map<string, any>();
+
+    // 1. Weather stations
+    weatherList.forEach((w) => {
+      if (w.latitude && w.longitude) {
+        const rain = rainMap.get(w.id);
+        map.set(w.id, {
+          ...w,
+          rainfall: rain ? rain.rainfall : (w.rainfall ?? 0),
+          hourlyRate: rain ? rain.hourlyRate : (w.rainfall ? w.rainfall * 12 : 0),
+          intensity: rain ? rain.intensity : (w.rainfall && w.rainfall > 0 ? 'light' : 'none'),
+          intensityLabel: rain ? rain.intensityLabel : (w.rainfall && w.rainfall > 0 ? 'Light Rain' : 'Dry / Clear'),
+        });
+      }
+    });
+
+    // 2. Rain stations not already included
+    rainList.forEach((r) => {
+      if (!map.has(r.id) && r.latitude && r.longitude) {
+        map.set(r.id, {
+          id: r.id,
+          name: r.name,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          temperature: null,
+          humidity: null,
+          windSpeedKmH: null,
+          windSpeedKnots: null,
+          windDirectionDegrees: null,
+          windDirectionCardinal: null,
+          rainfall: r.rainfall,
+          hourlyRate: r.hourlyRate,
+          intensity: r.intensity,
+          intensityLabel: r.intensityLabel,
+          lastObserved: new Date().toISOString(),
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [weatherData, rainData]);
+
+  // Auto-verify selectedStationId exists, else fallback to S108 or first available
+  useEffect(() => {
+    if (combinedStations.length > 0) {
+      const exists = combinedStations.some((s) => s.id === selectedStationId);
+      if (!exists) {
+        const fallback = combinedStations.find((s) => s.id === 'S108') || combinedStations[0];
+        setSelectedStationId(fallback.id);
+      }
+    }
+  }, [combinedStations, selectedStationId]);
+
   const handleSelectStation = (stationId: string | null) => {
-    setSelectedStationId(stationId);
     if (stationId) {
-      setIsPanelOpen(true);
+      setSelectedStationId(stationId);
     }
   };
 
   const selectedStationName = useMemo(() => {
-    if (!selectedStationId) return null;
-    const w = weatherData?.stations.find((s) => s.id === selectedStationId);
-    if (w) return w.name;
-    const r = rainData?.stations.find((s) => s.id === selectedStationId);
-    if (r) return r.name;
-    return null;
-  }, [selectedStationId, weatherData, rainData]);
+    const match = combinedStations.find((s) => s.id === selectedStationId);
+    return match ? match.name : 'Singapore';
+  }, [combinedStations, selectedStationId]);
 
   const latestUpdatedAt =
     weatherData?.updatedAt || rainData?.updatedAt || hazeData?.updatedAt || null;
@@ -115,7 +177,7 @@ function Dashboard() {
         isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'
       }`}
     >
-      {/* Top Header with live metrics & toggles */}
+      {/* Top Header */}
       <Header
         updatedAt={latestUpdatedAt}
         isLoading={isLoading}
@@ -126,17 +188,43 @@ function Dashboard() {
         isRaining={rainData?.isRaining ?? false}
         rainingStationCount={rainData?.rainingStationCount ?? 0}
         maxRainfall={rainData?.maxRainfall ?? 0}
-        isPanelOpen={isPanelOpen}
-        onTogglePanel={() => setIsPanelOpen(!isPanelOpen)}
         selectedStationName={selectedStationName}
         onOpenAttribution={() => setIsAttributionOpen(true)}
       />
 
-      {/* Main Single-Viewport Map & Location Info Layout (Zero Page Scroll) */}
-      <div className="flex-1 flex flex-col md:flex-row relative overflow-hidden">
+      {/* Mobile Screen Segmented Tab Switcher (Visible on small screens) */}
+      <div className="lg:hidden flex items-center justify-center p-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0">
+        <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-full max-w-sm">
+          <button
+            onClick={() => setMobileTab('intel')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              mobileTab === 'intel'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5" />
+            <span>Location Info ({selectedStationName.slice(0, 14)})</span>
+          </button>
+          <button
+            onClick={() => setMobileTab('map')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              mobileTab === 'map'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <MapIcon className="w-3.5 h-3.5" />
+            <span>Singapore Map</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Single-Page Unified Layout */}
+      <div className="flex-1 flex flex-col lg:flex-row relative overflow-hidden">
         {/* Error notification banner if any */}
         {errorMessage && (
-          <div className="absolute top-2 left-4 right-4 z-40 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 flex items-center justify-between gap-3 text-xs shadow-md backdrop-blur-md">
+          <div className="absolute top-2 left-4 right-4 z-50 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 flex items-center justify-between gap-3 text-xs shadow-md backdrop-blur-md">
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
               <span>{errorMessage}</span>
@@ -151,8 +239,29 @@ function Dashboard() {
           </div>
         )}
 
-        {/* Central Map Canvas - occupies all available space */}
-        <div className="flex-1 h-full w-full relative overflow-hidden flex flex-col">
+        {/* Column 1: Complete Location Weather Telemetry & Dropdown List */}
+        <div
+          className={`w-full lg:w-[480px] xl:w-[540px] 2xl:w-[580px] h-full shrink-0 flex flex-col overflow-hidden ${
+            mobileTab === 'intel' ? 'flex' : 'hidden lg:flex'
+          }`}
+        >
+          <LocationOverview
+            selectedStationId={selectedStationId}
+            onSelectStation={handleSelectStation}
+            combinedStations={combinedStations}
+            hazeRegions={hazeData?.regions ?? []}
+            twoHourAreas={weatherData?.forecast?.twoHourAreas ?? []}
+            twentyFourHour={weatherData?.forecast?.twentyFourHour ?? null}
+            fourDay={weatherData?.forecast?.fourDay ?? []}
+          />
+        </div>
+
+        {/* Column 2: Live Interactive Singapore Map */}
+        <div
+          className={`flex-1 h-full w-full relative overflow-hidden flex flex-col ${
+            mobileTab === 'map' ? 'flex' : 'hidden lg:flex'
+          }`}
+        >
           <SingaporeMap
             weatherStations={weatherData?.stations ?? []}
             rainStations={rainData?.stations ?? []}
@@ -163,23 +272,6 @@ function Dashboard() {
             isRaining={rainData?.isRaining ?? false}
           />
         </div>
-
-        {/* Location Info Panel / Drawer toggled from the map */}
-        {isPanelOpen && (
-          <div className="absolute md:relative bottom-0 right-0 left-0 md:left-auto w-full md:w-80 lg:w-96 max-h-[70vh] md:max-h-full h-auto md:h-full z-30 transition-all animate-in slide-in-from-right duration-200 shrink-0">
-            <LocationDetailPanel
-              selectedStationId={selectedStationId}
-              onSelectStation={handleSelectStation}
-              weatherStations={weatherData?.stations ?? []}
-              rainStations={rainData?.stations ?? []}
-              hazeRegions={hazeData?.regions ?? []}
-              twoHourAreas={weatherData?.forecast?.twoHourAreas ?? []}
-              twentyFourHour={weatherData?.forecast?.twentyFourHour ?? null}
-              fourDay={weatherData?.forecast?.fourDay ?? []}
-              onClose={() => setIsPanelOpen(false)}
-            />
-          </div>
-        )}
       </div>
 
       {/* Official Singapore Open Data License Modal */}

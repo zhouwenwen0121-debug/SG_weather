@@ -25,8 +25,6 @@ interface HeaderProps {
   isRaining: boolean;
   rainingStationCount: number;
   maxRainfall: number;
-  isPanelOpen: boolean;
-  onTogglePanel: () => void;
   selectedStationName: string | null;
   onOpenAttribution: () => void;
 }
@@ -41,8 +39,6 @@ export const Header: React.FC<HeaderProps> = ({
   isRaining,
   rainingStationCount,
   maxRainfall,
-  isPanelOpen,
-  onTogglePanel,
   selectedStationName,
   onOpenAttribution,
 }) => {
@@ -50,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 z-40 transition-colors shadow-xs shrink-0 select-none">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
+      <div className="w-full px-3 sm:px-4 lg:px-6">
         <div className="flex items-center justify-between h-14 sm:h-16 gap-2 sm:gap-4">
           {/* Brand & Live status */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -78,11 +74,11 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Islandwide HUD Quick Status Badges */}
-          <div className="hidden lg:flex items-center gap-2 text-xs">
+          <div className="hidden md:flex items-center gap-2 text-xs">
             {/* Condition & Avg Temp */}
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-300">
               <Thermometer className="w-3.5 h-3.5 text-amber-500" />
-              <span>Avg:</span>
+              <span>Island Avg:</span>
               <strong className="text-slate-900 dark:text-white font-bold">
                 {summary?.temperatureAvg !== null ? `${summary?.temperatureAvg}°C` : '--'}
               </strong>
@@ -110,26 +106,13 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           </div>
 
-          {/* Right Action Controls: Toggle Location Info, Dark/Bright Mode, Refresh & Info */}
+          {/* Right Action Controls: Active Location Tag, Dark/Bright Mode, Refresh & Info */}
           <div className="flex items-center gap-1.5 sm:gap-2 text-xs">
-            {/* Toggle Location Info Panel Button */}
-            <button
-              onClick={onTogglePanel}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer shadow-xs ${
-                isPanelOpen
-                  ? 'bg-blue-600 text-white border-blue-500 shadow-blue-500/25'
-                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
-              }`}
-              title="Toggle Location Details Panel"
-            >
-              <MapPin className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline">
-                {selectedStationName ? selectedStationName : 'Location Info'}
-              </span>
-              <span className="sm:hidden">
-                {selectedStationName ? 'Location' : 'Info'}
-              </span>
-            </button>
+            {/* Active Selected Location Display Badge */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-300 font-bold max-w-[140px] sm:max-w-[200px] truncate shadow-xs">
+              <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <span className="truncate">{selectedStationName || 'Singapore'}</span>
+            </div>
 
             {/* Bright / Dark Mode Toggle */}
             <button
@@ -141,12 +124,12 @@ export const Header: React.FC<HeaderProps> = ({
               {isDark ? (
                 <>
                   <Sun className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden md:inline font-semibold">Bright</span>
+                  <span className="hidden sm:inline font-semibold">Bright</span>
                 </>
               ) : (
                 <>
                   <Moon className="w-3.5 h-3.5 text-indigo-600" />
-                  <span className="hidden md:inline font-semibold">Dark</span>
+                  <span className="hidden sm:inline font-semibold">Dark</span>
                 </>
               )}
             </button>
