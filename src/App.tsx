@@ -8,11 +8,13 @@ import { WeatherStationsList } from './components/WeatherStationsList';
 import { ForecastSection } from './components/ForecastSection';
 import { Footer } from './components/Footer';
 import { WeatherResponse, RainResponse, HazeResponse, HealthResponse } from './types/weather';
-import { AlertTriangle, RefreshCw, Radio } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
-export default function App() {
+function Dashboard() {
+  const { isDark } = useTheme();
   const [weatherData, setWeatherData] = useState<WeatherResponse | null>(null);
   const [rainData, setRainData] = useState<RainResponse | null>(null);
   const [hazeData, setHazeData] = useState<HazeResponse | null>(null);
@@ -101,7 +103,11 @@ export default function App() {
     weatherData?.updatedAt || rainData?.updatedAt || hazeData?.updatedAt || null;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-500 selection:text-white">
+    <div
+      className={`min-h-screen flex flex-col font-sans transition-colors duration-200 selection:bg-blue-500 selection:text-white ${
+        isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'
+      }`}
+    >
       {/* Header */}
       <Header
         updatedAt={latestUpdatedAt}
@@ -116,14 +122,14 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
         {/* Error Alert if any */}
         {errorMessage && (
-          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 flex items-center justify-between gap-3 text-xs sm:text-sm animate-in fade-in">
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 flex items-center justify-between gap-3 text-xs sm:text-sm animate-in fade-in">
             <div className="flex items-center gap-2.5">
-              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+              <AlertTriangle className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0" />
               <span>{errorMessage}</span>
             </div>
             <button
               onClick={() => fetchAllData(true)}
-              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium shrink-0 flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium shrink-0 flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               Retry
@@ -148,10 +154,10 @@ export default function App() {
           <div id="map-top" className="scroll-mt-24 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   Singapore Weather & Rain Radar Map
                 </h2>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   Interactive real-time spatial telemetry: rain gauges, temperatures, wind velocity & air quality
                 </p>
               </div>
@@ -213,5 +219,13 @@ export default function App() {
       {/* Footer & Official Attribution */}
       <Footer />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ThemeProvider>
+      <Dashboard />
+    </ThemeProvider>
   );
 }

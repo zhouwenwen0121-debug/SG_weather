@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   CalendarDays,
-  Clock,
   Search,
   Sun,
   CloudRain,
@@ -39,10 +38,10 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
 
   const getForecastIcon = (fc: string) => {
     const text = fc.toLowerCase();
-    if (text.includes('thunder')) return <CloudLightning className="w-5 h-5 text-amber-400" />;
-    if (text.includes('rain') || text.includes('shower')) return <CloudRain className="w-5 h-5 text-blue-400" />;
-    if (text.includes('cloud')) return <CloudSun className="w-5 h-5 text-sky-400" />;
-    return <Sun className="w-5 h-5 text-amber-400" />;
+    if (text.includes('thunder')) return <CloudLightning className="w-5 h-5 text-amber-500" />;
+    if (text.includes('rain') || text.includes('shower')) return <CloudRain className="w-5 h-5 text-blue-500" />;
+    if (text.includes('cloud')) return <CloudSun className="w-5 h-5 text-sky-500" />;
+    return <Sun className="w-5 h-5 text-amber-500" />;
   };
 
   return (
@@ -50,65 +49,65 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2.5">
-            <span className="p-2 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
+            <span className="p-2 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">
               <CalendarDays className="w-5 h-5" />
             </span>
             What’s next?
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             Official NEA meteorological forecasts across micro-zones and multi-day outlooks
           </p>
         </div>
 
         {/* Clear Distinction Badge */}
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
-          <Info className="w-3.5 h-3.5" />
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-800 dark:text-amber-300 text-xs font-medium">
+          <Info className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
           <span>Forward Predictions (Distinct from sensor observations)</span>
         </div>
       </div>
 
       {/* 24-Hour Island Outlook Card */}
       {twentyFourHour && (
-        <div className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-900 rounded-2xl p-5 border border-slate-800 shadow-xl">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4 mb-4">
+        <div className="bg-white dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-850 dark:to-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-md transition-colors">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4 mb-4">
             <div>
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                 Official NEA 24-Hour Singapore Outlook
               </span>
-              <h3 className="text-lg sm:text-xl font-bold text-white mt-1 flex items-center gap-2">
+              <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mt-1 flex items-center gap-2">
                 {getForecastIcon(twentyFourHour.general || 'Fair')}
                 <span>{twentyFourHour.general || 'Fair'}</span>
               </h3>
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-xs">
-              <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center gap-2">
-                <Thermometer className="w-4 h-4 text-amber-400" />
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 flex items-center gap-2">
+                <Thermometer className="w-4 h-4 text-amber-500 dark:text-amber-400" />
                 <div>
-                  <span className="text-slate-400 block text-[10px]">Expected Temp</span>
-                  <span className="font-bold text-white">
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Expected Temp</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
                     {twentyFourHour.temperatureLow ?? '--'}° - {twentyFourHour.temperatureHigh ?? '--'}°C
                   </span>
                 </div>
               </div>
 
-              <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center gap-2">
-                <Droplets className="w-4 h-4 text-cyan-400" />
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 flex items-center gap-2">
+                <Droplets className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
                 <div>
-                  <span className="text-slate-400 block text-[10px]">Expected Humidity</span>
-                  <span className="font-bold text-white">
+                  <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Expected Humidity</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
                     {twentyFourHour.humidityLow ?? '--'}% - {twentyFourHour.humidityHigh ?? '--'}%
                   </span>
                 </div>
               </div>
 
               {twentyFourHour.windSpeed && (
-                <div className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center gap-2">
-                  <Wind className="w-4 h-4 text-emerald-400" />
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 flex items-center gap-2">
+                  <Wind className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
                   <div>
-                    <span className="text-slate-400 block text-[10px]">Expected Wind</span>
-                    <span className="font-bold text-white">
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Expected Wind</span>
+                    <span className="font-bold text-slate-900 dark:text-white">
                       {twentyFourHour.windSpeed.low}-{twentyFourHour.windSpeed.high} km/h {twentyFourHour.windDirection ?? ''}
                     </span>
                   </div>
@@ -120,16 +119,16 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
           {/* Regional 24-Hr Breakdown if available */}
           {twentyFourHour.periods && twentyFourHour.periods.length > 0 && (
             <div className="space-y-3">
-              <span className="text-xs font-bold text-slate-300 block">Regional Outlook by Time Period:</span>
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-300 block">Regional Outlook by Time Period:</span>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                 {twentyFourHour.periods.map((period, idx) => (
-                  <div key={idx} className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
-                    <span className="font-bold text-blue-400 block mb-2">{period.time.text}</span>
-                    <div className="grid grid-cols-2 gap-1.5 text-slate-300">
+                  <div key={idx} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50">
+                    <span className="font-bold text-blue-600 dark:text-blue-400 block mb-2">{period.time.text}</span>
+                    <div className="grid grid-cols-2 gap-1.5 text-slate-700 dark:text-slate-300">
                       {Object.entries(period.regions).map(([reg, fc]) => (
-                        <div key={reg} className="flex justify-between bg-slate-800/80 px-2 py-1 rounded">
-                          <span className="capitalize text-slate-400">{reg}:</span>
-                          <span className="font-medium text-white truncate max-w-[90px]">{fc}</span>
+                        <div key={reg} className="flex justify-between bg-white dark:bg-slate-800/80 px-2 py-1 rounded border border-slate-100 dark:border-slate-700/40">
+                          <span className="capitalize text-slate-500 dark:text-slate-400">{reg}:</span>
+                          <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[90px]">{fc}</span>
                         </div>
                       ))}
                     </div>
@@ -144,8 +143,8 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
       {/* 4-Day Extended Outlook */}
       {fourDay.length > 0 && (
         <div>
-          <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-            <CalendarDays className="w-4 h-4 text-blue-400" />
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 text-blue-500 dark:text-blue-400" />
             4-Day Extended Singapore Outlook
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
@@ -158,37 +157,37 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
               return (
                 <div
                   key={item.date}
-                  className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex flex-col justify-between"
+                  className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-md flex flex-col justify-between transition-colors"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                         {dayName}
                       </span>
                       {getForecastIcon(item.forecast)}
                     </div>
-                    <h4 className="text-sm font-semibold text-slate-200 leading-snug min-h-[38px]">
+                    <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 leading-snug min-h-[38px]">
                       {item.forecast}
                     </h4>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-800 space-y-1.5 text-xs text-slate-300">
+                  <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Temperature</span>
-                      <span className="font-bold text-white">
+                      <span className="text-slate-500 dark:text-slate-400">Temperature</span>
+                      <span className="font-bold text-slate-900 dark:text-white">
                         {item.temperatureLow}° - {item.temperatureHigh}°C
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Humidity</span>
-                      <span className="font-semibold text-cyan-300">
+                      <span className="text-slate-500 dark:text-slate-400">Humidity</span>
+                      <span className="font-semibold text-cyan-600 dark:text-cyan-300">
                         {item.humidityLow}% - {item.humidityHigh}%
                       </span>
                     </div>
                     {item.windSpeed && (
                       <div className="flex items-center justify-between">
-                        <span className="text-slate-400">Wind</span>
-                        <span className="font-medium text-emerald-300">{item.windSpeed}</span>
+                        <span className="text-slate-500 dark:text-slate-400">Wind</span>
+                        <span className="font-medium text-emerald-600 dark:text-emerald-300">{item.windSpeed}</span>
                       </div>
                     )}
                   </div>
@@ -200,20 +199,20 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
       )}
 
       {/* 2-Hour Micro-Area Forecasts (47 Planning Zones) */}
-      <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800 shadow-xl">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-md transition-colors">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-white">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                 2-Hour Micro-Forecast Across 47 Singapore Planning Areas
               </h3>
               {twoHourPeriod && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-medium">
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/30 font-semibold">
                   Valid: {twoHourPeriod.text || `${twoHourPeriod.start} - ${twoHourPeriod.end}`}
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Micro-climate predictions for town councils and urban districts
             </p>
           </div>
@@ -227,15 +226,15 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
                 placeholder="Search area (e.g. Bedok)..."
                 value={areaSearch}
                 onChange={(e) => setAreaSearch(e.target.value)}
-                className="bg-slate-800 border border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 w-44"
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 w-44"
               />
             </div>
             <button
               onClick={() => setFilterRainOnly(!filterRainOnly)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
                 filterRainOnly
                   ? 'bg-blue-600 text-white border-blue-500'
-                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
               Rain Only
@@ -250,17 +249,17 @@ export const ForecastSection: React.FC<ForecastSectionProps> = ({
               key={item.area}
               className={`p-2.5 rounded-xl border flex flex-col justify-between transition-colors ${
                 item.isRain
-                  ? 'bg-blue-950/40 border-blue-500/50 text-blue-200'
-                  : 'bg-slate-800/50 border-slate-700/60 text-slate-300'
+                  ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-500/50 text-blue-900 dark:text-blue-200'
+                  : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/60 text-slate-700 dark:text-slate-300'
               }`}
             >
               <div className="flex items-start justify-between gap-1">
-                <span className="text-xs font-semibold text-white truncate max-w-[85px]">
+                <span className="text-xs font-bold text-slate-900 dark:text-white truncate max-w-[85px]">
                   {item.area}
                 </span>
                 {getForecastIcon(item.forecast)}
               </div>
-              <span className={`text-[10px] mt-1.5 font-medium ${item.isRain ? 'text-blue-300 font-bold' : 'text-slate-400'}`}>
+              <span className={`text-[10px] mt-1.5 font-semibold ${item.isRain ? 'text-blue-700 dark:text-blue-300 font-bold' : 'text-slate-500 dark:text-slate-400'}`}>
                 {item.forecast}
               </span>
             </div>
