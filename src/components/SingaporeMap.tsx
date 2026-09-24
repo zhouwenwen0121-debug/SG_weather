@@ -11,6 +11,8 @@ import {
   Compass,
   MapPin,
   X,
+  Search,
+  Check,
 } from 'lucide-react';
 import {
   projectGeoToSvg,
@@ -36,6 +38,20 @@ interface SingaporeMapProps {
 
 export type MapLayer = 'rain' | 'temperature' | 'haze' | 'wind';
 
+// Key Singapore locations for the top quick-toggle bar
+const POPULAR_LOCATIONS = [
+  { id: 'S108', label: 'Marina Barrage' },
+  { id: 'S24', label: 'Changi' },
+  { id: 'S60', label: 'Sentosa' },
+  { id: 'S109', label: 'Ang Mo Kio' },
+  { id: 'S44', label: 'Jurong West' },
+  { id: 'S104', label: 'Woodlands' },
+  { id: 'S117', label: 'Clementi' },
+  { id: 'S111', label: 'Newton/Orchard' },
+  { id: 'S106', label: 'Pulau Ubin' },
+  { id: 'S43', label: 'Tai Seng' },
+];
+
 export const SingaporeMap: React.FC<SingaporeMapProps> = ({
   weatherStations,
   rainStations,
@@ -49,7 +65,8 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
   const [activeLayer, setActiveLayer] = useState<MapLayer>('rain');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [hoveredStation, setHoveredStation] = useState<WeatherStation | RainStation | null>(null);
+  const [hoveredStation, setHoveredStation] = useState<any | null>(null);
+  const [searchFilter, setSearchFilter] = useState('');
 
   // Combine weather stations with rain data for unified map markers
   const combinedStations = useMemo(() => {
@@ -71,7 +88,7 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
       }
     });
 
-    // 2. Add rain stations that may not have temp sensors
+    // 2. Add rain stations
     rainStations.forEach((r) => {
       if (!map.has(r.id) && r.latitude && r.longitude) {
         map.set(r.id, {
@@ -95,7 +112,7 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
     return Array.from(map.values());
   }, [weatherStations, rainStations]);
 
-  // Selected station detail
+  // Selected station
   const activeStation = useMemo(() => {
     if (!selectedStationId) return null;
     return combinedStations.find((s) => s.id === selectedStationId) || null;
@@ -112,11 +129,11 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
   // Temperature color mapping
   const getTempColor = (temp: number | null) => {
     if (temp === null) return '#64748b';
-    if (temp >= 32) return '#ef4444'; // Hot red
-    if (temp >= 30) return '#f97316'; // Warm orange
-    if (temp >= 28) return '#eab308'; // Amber
-    if (temp >= 26) return '#10b981'; // Mild green
-    return '#06b6d4'; // Cool cyan
+    if (temp >= 32) return '#ef4444';
+    if (temp >= 30) return '#f97316';
+    if (temp >= 28) return '#eab308';
+    if (temp >= 26) return '#10b981';
+    return '#06b6d4';
   };
 
   const handleZoom = (delta: number) => {
@@ -130,95 +147,138 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
   const handleResetZoom = () => {
     setZoomLevel(1);
     setPanOffset({ x: 0, y: 0 });
-    onSelectStation(null);
+  };
+
+  const handleToggleStation = (stationId: string) => {
+    if (selectedStationId === stationId) {
+      onSelectStation(null);
+    } else {
+      onSelectStation(stationId);
+    }
   };
 
   return (
-    <div className="relative bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl dark:shadow-2xl overflow-hidden transition-colors">
-      {/* Top Map Toolbar: Layer Switchers & View Controls */}
-      <div className="absolute top-4 left-4 right-4 z-20 flex flex-wrap items-center justify-between gap-3 pointer-events-none">
-        {/* Layer Selector */}
-        <div className="flex items-center gap-1 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md p-1 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-md dark:shadow-lg pointer-events-auto">
-          <button
-            onClick={() => setActiveLayer('rain')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              activeLayer === 'rain'
-                ? 'bg-blue-600 text-white shadow-xs shadow-blue-500/50'
-                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <CloudRain className="w-3.5 h-3.5" />
-            <span>Rain & Radar</span>
-            {isRaining && (
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-            )}
-          </button>
+    <div className="relative w-full h-full flex flex-col bg-white dark:bg-slate-950 overflow-hidden select-none transition-colors">
+      {/* Top Map Toolbar: Layers, Quick Location Toggle Bar, Zoom */}
+      <div className="z-20 p-2.5 sm:p-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 space-y-2 shrink-0 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {/* Layer Selector */}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
+            <button
+              onClick={() => setActiveLayer('rain')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeLayer === 'rain'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <CloudRain className="w-3.5 h-3.5" />
+              <span>Rain</span>
+              {isRaining && (
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
+              )}
+            </button>
 
-          <button
-            onClick={() => setActiveLayer('temperature')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              activeLayer === 'temperature'
-                ? 'bg-amber-600 text-white shadow-xs shadow-amber-500/50'
-                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Thermometer className="w-3.5 h-3.5" />
-            <span>Temperature</span>
-          </button>
+            <button
+              onClick={() => setActiveLayer('temperature')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeLayer === 'temperature'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Thermometer className="w-3.5 h-3.5" />
+              <span>Temp</span>
+            </button>
 
-          <button
-            onClick={() => setActiveLayer('haze')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              activeLayer === 'haze'
-                ? 'bg-purple-600 text-white shadow-xs shadow-purple-500/50'
-                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            <span>Air Quality (PSI)</span>
-          </button>
+            <button
+              onClick={() => setActiveLayer('haze')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeLayer === 'haze'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>PSI</span>
+            </button>
 
-          <button
-            onClick={() => setActiveLayer('wind')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              activeLayer === 'wind'
-                ? 'bg-emerald-600 text-white shadow-xs shadow-emerald-500/50'
-                : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            <Wind className="w-3.5 h-3.5" />
-            <span>Wind Flow</span>
-          </button>
+            <button
+              onClick={() => setActiveLayer('wind')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeLayer === 'wind'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Wind className="w-3.5 h-3.5" />
+              <span>Wind</span>
+            </button>
+          </div>
+
+          {/* Zoom Controls */}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xs">
+            <button
+              onClick={() => handleZoom(0.25)}
+              title="Zoom in"
+              className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleZoom(-0.25)}
+              title="Zoom out"
+              className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleResetZoom}
+              title="Reset Singapore view"
+              className="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        {/* Zoom Controls */}
-        <div className="flex items-center gap-1 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md p-1 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-md dark:shadow-lg pointer-events-auto">
-          <button
-            onClick={() => handleZoom(0.3)}
-            title="Zoom in"
-            className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleZoom(-0.3)}
-            title="Zoom out"
-            className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleResetZoom}
-            title="Reset Singapore view"
-            className="p-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+        {/* Quick Location Toggle Bar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1 text-xs">
+          <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+            <MapPin className="w-3 h-3 text-blue-500" />
+            Toggle Location:
+          </span>
+
+          {POPULAR_LOCATIONS.map((loc) => {
+            const isSelected = selectedStationId === loc.id;
+            return (
+              <button
+                key={loc.id}
+                onClick={() => handleToggleStation(loc.id)}
+                className={`px-2.5 py-1 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer border ${
+                  isSelected
+                    ? 'bg-blue-600 text-white border-blue-500 shadow-sm shadow-blue-500/30'
+                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                {loc.label}
+              </button>
+            );
+          })}
+
+          {selectedStationId && (
+            <button
+              onClick={() => onSelectStation(null)}
+              className="px-2 py-1 rounded-lg text-[11px] font-medium text-slate-400 hover:text-slate-700 dark:hover:text-white underline cursor-pointer shrink-0 ml-1"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Main SVG Visualization Canvas */}
-      <div className="w-full aspect-[16/9] min-h-[380px] max-h-[580px] flex items-center justify-center bg-gradient-to-b from-sky-50 via-slate-50 to-blue-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 select-none overflow-hidden transition-colors">
+      {/* Main SVG Visualization Canvas filling remaining flex height */}
+      <div className="flex-1 w-full relative flex items-center justify-center bg-gradient-to-b from-sky-50 via-slate-50 to-blue-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 overflow-hidden">
         <svg
           viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
           className="w-full h-full cursor-grab active:cursor-grabbing transition-transform duration-300 ease-out"
@@ -272,7 +332,7 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
           {/* Background Ocean / Singapore Straits */}
           <rect width={SVG_WIDTH} height={SVG_HEIGHT} fill="url(#waterGradient)" />
 
-          {/* Coordinate grid lines for precision */}
+          {/* Coordinate grid lines */}
           <g stroke={isDark ? '#334155' : '#94a3b8'} strokeWidth="0.5" strokeDasharray="3 3" opacity={isDark ? '0.35' : '0.45'}>
             <line x1="200" y1="0" x2="200" y2={SVG_HEIGHT} />
             <line x1="400" y1="0" x2="400" y2={SVG_HEIGHT} />
@@ -282,7 +342,7 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
             <line x1="0" y1="360" x2={SVG_WIDTH} y2="360" />
           </g>
 
-          {/* Regional Boundaries for Context (North, South, East, West, Central) */}
+          {/* Regional Boundaries */}
           <g opacity="0.4" stroke={isDark ? '#475569' : '#64748b'} strokeWidth="1" strokeDasharray="2 4">
             <path d="M 330 50 Q 340 180 320 280 Q 300 320 270 330" fill="none" />
             <path d="M 520 80 Q 510 180 520 260 Q 530 300 500 330" fill="none" />
@@ -337,10 +397,10 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
             <text x="440" y="340" textAnchor="middle">SOUTH</text>
           </g>
 
-          {/* LAYER 1: RAIN & RADAR */}
+          {/* LAYER 1: RAIN */}
           {activeLayer === 'rain' && (
             <>
-              {/* Rain forecast micro-areas (47 planning zones) */}
+              {/* Rain forecast micro-areas */}
               {twoHourAreas.map((area) => {
                 if (!area.latitude || !area.longitude) return null;
                 const pt = projectGeoToSvg(area.latitude, area.longitude);
@@ -383,10 +443,25 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                   <g
                     key={`rain-${station.id}`}
                     className="cursor-pointer transition-transform hover:scale-125"
-                    onClick={() => onSelectStation(station.id)}
+                    onClick={() => handleToggleStation(station.id)}
                     onMouseEnter={() => setHoveredStation(station)}
                     onMouseLeave={() => setHoveredStation(null)}
                   >
+                    {/* Targeting reticle if selected */}
+                    {isSelected && (
+                      <g className="animate-spin-slow">
+                        <circle
+                          cx={pt.x}
+                          cy={pt.y}
+                          r="16"
+                          fill="none"
+                          stroke="#3b82f6"
+                          strokeWidth="1.5"
+                          strokeDasharray="3 3"
+                        />
+                      </g>
+                    )}
+
                     {/* Pulsing ring for rain stations */}
                     {hasRain && (
                       <circle
@@ -402,38 +477,39 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                     <circle
                       cx={pt.x}
                       cy={pt.y}
-                      r={isSelected ? 7 : hasRain ? 6 : 4}
-                      fill={colors.fill}
+                      r={isSelected ? 8 : hasRain ? 6 : 4.5}
+                      fill={isSelected ? '#3b82f6' : colors.fill}
                       stroke={isSelected ? '#ffffff' : colors.stroke}
-                      strokeWidth={isSelected ? 2 : 1.5}
+                      strokeWidth={isSelected ? 2.5 : 1.5}
                       filter={hasRain ? 'url(#rainGlow)' : undefined}
                     />
 
                     {/* Small center dot */}
                     <circle cx={pt.x} cy={pt.y} r={1.5} fill="#ffffff" />
 
-                    {/* If selected or raining, display label */}
+                    {/* Station Name & Reading Badge */}
                     {(hasRain || isSelected) && (
                       <g>
                         <rect
-                          x={pt.x - 28}
-                          y={pt.y - 20}
-                          width="56"
-                          height="14"
+                          x={pt.x - 34}
+                          y={pt.y - 22}
+                          width="68"
+                          height="16"
                           rx="4"
-                          fill={isDark ? 'rgba(15,23,42,0.92)' : 'rgba(255,255,255,0.92)'}
-                          stroke={colors.stroke}
-                          strokeWidth="0.8"
+                          fill={isDark ? 'rgba(15,23,42,0.95)' : 'rgba(255,255,255,0.95)'}
+                          stroke={isSelected ? '#3b82f6' : colors.stroke}
+                          strokeWidth={isSelected ? 1.5 : 0.8}
+                          className="filter drop-shadow-sm"
                         />
                         <text
                           x={pt.x}
-                          y={pt.y - 10}
+                          y={pt.y - 11}
                           fontSize="8"
                           fontWeight="700"
                           fill={isDark ? '#ffffff' : '#0f172a'}
                           textAnchor="middle"
                         >
-                          {station.rainfall > 0 ? `${station.rainfall}mm` : '0.0mm'}
+                          {station.name.slice(0, 9)}: {station.rainfall > 0 ? `${station.rainfall}mm` : '0mm'}
                         </text>
                       </g>
                     )}
@@ -456,14 +532,26 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                   <g
                     key={`temp-${station.id}`}
                     className="cursor-pointer transition-transform hover:scale-125"
-                    onClick={() => onSelectStation(station.id)}
+                    onClick={() => handleToggleStation(station.id)}
                     onMouseEnter={() => setHoveredStation(station)}
                     onMouseLeave={() => setHoveredStation(null)}
                   >
+                    {isSelected && (
+                      <circle
+                        cx={pt.x}
+                        cy={pt.y}
+                        r="18"
+                        fill="none"
+                        stroke="#ffffff"
+                        strokeWidth="2"
+                        strokeDasharray="3 3"
+                        className="animate-spin-slow"
+                      />
+                    )}
                     <circle
                       cx={pt.x}
                       cy={pt.y}
-                      r={isSelected ? 14 : 11}
+                      r={isSelected ? 15 : 11}
                       fill={color}
                       fillOpacity={isDark ? '0.85' : '0.92'}
                       stroke={isSelected ? '#ffffff' : isDark ? '#0f172a' : '#ffffff'}
@@ -493,9 +581,8 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                 if (!region.latitude || !region.longitude) return null;
                 const pt = projectGeoToSvg(region.latitude, region.longitude);
 
-                // Region color based on PSI
                 const psi = region.psi ?? 0;
-                let bgFill = '#10b981'; // Good
+                let bgFill = '#10b981';
                 let borderColor = '#059669';
                 if (psi > 100) {
                   bgFill = '#f59e0b';
@@ -566,12 +653,11 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                   <g
                     key={`wind-${station.id}`}
                     className="cursor-pointer transition-transform hover:scale-125"
-                    onClick={() => onSelectStation(station.id)}
+                    onClick={() => handleToggleStation(station.id)}
                     onMouseEnter={() => setHoveredStation(station)}
                     onMouseLeave={() => setHoveredStation(null)}
                   >
                     <g transform={`translate(${pt.x}, ${pt.y}) rotate(${rot})`}>
-                      {/* Direction arrow */}
                       <line x1="0" y1="8" x2="0" y2="-12" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
                       <polygon points="0,-16 -4,-9 4,-9" fill="#10b981" />
                     </g>
@@ -583,7 +669,6 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
                       stroke="#10b981"
                       strokeWidth="1"
                     />
-                    {/* Speed badge */}
                     <rect
                       x={pt.x - 18}
                       y={pt.y + 8}
@@ -610,143 +695,11 @@ export const SingaporeMap: React.FC<SingaporeMapProps> = ({
             </g>
           )}
         </svg>
-      </div>
 
-      {/* Floating Station Detail Card (when hovered or selected) */}
-      {(activeStation || hoveredStation) && (
-        <div className="absolute bottom-16 left-4 right-4 sm:right-auto sm:w-80 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl dark:shadow-2xl text-xs transition-all animate-in fade-in slide-in-from-bottom-2">
-          {(() => {
-            const st = activeStation || hoveredStation;
-            if (!st) return null;
-            return (
-              <div>
-                <div className="flex items-start justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 mb-2">
-                  <div>
-                    <span className="text-[10px] font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-500/20 font-bold">
-                      STATION {st.id}
-                    </span>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white mt-1">{st.name}</h4>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      {st.latitude?.toFixed(4)}° N, {st.longitude?.toFixed(4)}° E
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      onSelectStation(null);
-                      setHoveredStation(null);
-                    }}
-                    className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-slate-700 dark:text-slate-300">
-                  <div className="bg-slate-50 dark:bg-slate-800/60 p-2 rounded-lg border border-slate-200 dark:border-slate-700/50">
-                    <span className="text-slate-500 dark:text-slate-400 text-[10px] block">5-Min Rainfall</span>
-                    <span className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                      <CloudRain className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" />
-                      {typeof st.rainfall === 'number' ? `${st.rainfall} mm` : '0.0 mm'}
-                    </span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                      {st.rainfall && st.rainfall > 0 ? `${(st.rainfall * 12).toFixed(1)} mm/h` : 'Dry'}
-                    </span>
-                  </div>
-
-                  <div className="bg-slate-50 dark:bg-slate-800/60 p-2 rounded-lg border border-slate-200 dark:border-slate-700/50">
-                    <span className="text-slate-500 dark:text-slate-400 text-[10px] block">Temperature</span>
-                    <span className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1">
-                      <Thermometer className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                      {st.temperature !== null && st.temperature !== undefined ? `${st.temperature} °C` : '--'}
-                    </span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
-                      RH: {st.humidity ? `${st.humidity}%` : '--'}
-                    </span>
-                  </div>
-
-                  <div className="bg-slate-50 dark:bg-slate-800/60 p-2 rounded-lg border border-slate-200 dark:border-slate-700/50 col-span-2 flex items-center justify-between">
-                    <div>
-                      <span className="text-slate-500 dark:text-slate-400 text-[10px] block">Wind Velocity</span>
-                      <span className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-1">
-                        <Wind className="w-3 h-3 text-emerald-500 dark:text-emerald-400" />
-                        {st.windSpeedKmH ? `${st.windSpeedKmH} km/h (${st.windSpeedKnots} kts)` : 'Calm / Sensor NA'}
-                      </span>
-                    </div>
-                    {st.windDirectionCardinal && (
-                      <div className="text-right">
-                        <span className="text-slate-500 dark:text-slate-400 text-[10px] block">Direction</span>
-                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                          {st.windDirectionCardinal} ({st.windDirectionDegrees}°)
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* Bottom Map Legend Bar */}
-      <div className="p-3 sm:px-6 bg-slate-50 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 flex flex-wrap items-center justify-between gap-3 transition-colors">
-        <div className="flex items-center gap-4 flex-wrap">
-          <span className="text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
-            {activeLayer === 'rain' && 'Rainfall Intensity (MSS/NEA Standard):'}
-            {activeLayer === 'temperature' && 'Temperature Scale (°C):'}
-            {activeLayer === 'haze' && '24-Hour PSI Air Quality Bands:'}
-            {activeLayer === 'wind' && 'Wind Observation:'}
-          </span>
-
-          {activeLayer === 'rain' && (
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                <span className="text-slate-700 dark:text-slate-300">No Rain (0.0mm)</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-                <span className="text-slate-700 dark:text-slate-300">Light (&le;0.2mm)</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-                <span className="text-slate-700 dark:text-slate-300">Moderate (0.3-0.8mm)</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-pink-500 animate-pulse"></span>
-                <span className="text-pink-600 dark:text-pink-400 font-medium">Heavy (&gt;0.8mm)</span>
-              </span>
-            </div>
-          )}
-
-          {activeLayer === 'temperature' && (
-            <div className="flex items-center gap-2">
-              <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-mono font-bold">&lt;28°C</span>
-              <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-mono font-bold">28-30°C</span>
-              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 font-mono font-bold">30-32°C</span>
-              <span className="px-1.5 py-0.5 rounded bg-red-500/20 text-red-600 dark:text-red-400 font-mono font-bold">&gt;32°C</span>
-            </div>
-          )}
-
-          {activeLayer === 'haze' && (
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-semibold border border-emerald-500/30">0-50 Good</span>
-              <span className="px-2 py-0.5 rounded bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 font-semibold border border-blue-500/30">51-100 Moderate</span>
-              <span className="px-2 py-0.5 rounded bg-amber-500/10 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 font-semibold border border-amber-500/30">101-200 Unhealthy</span>
-            </div>
-          )}
-
-          {activeLayer === 'wind' && (
-            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-              <Compass className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Arrow indicates wind flow direction with telemetry speed in km/h</span>
-            </div>
-          )}
-        </div>
-
-        <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-          <Info className="w-3 h-3 text-slate-500 dark:text-slate-400" />
-          <span>Click any marker to inspect station sensor telemetry</span>
+        {/* Quick Location Tap Reminder Pill */}
+        <div className="absolute bottom-3 left-3 z-10 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-300 shadow-sm flex items-center gap-1.5 pointer-events-none">
+          <Info className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+          <span>Click any marker on the map to toggle its weather details</span>
         </div>
       </div>
     </div>

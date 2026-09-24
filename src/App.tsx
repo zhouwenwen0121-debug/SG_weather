@@ -1,17 +1,13 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Header } from './components/Header';
 import { SingaporeMap } from './components/SingaporeMap';
-import { WeatherSummaryCards } from './components/WeatherSummaryCards';
-import { RainfallSection } from './components/RainfallSection';
-import { HazeSection } from './components/HazeSection';
-import { WeatherStationsList } from './components/WeatherStationsList';
-import { ForecastSection } from './components/ForecastSection';
-import { Footer } from './components/Footer';
+import { LocationDetailPanel } from './components/LocationDetailPanel';
+import { AttributionModal } from './components/AttributionModal';
 import { WeatherResponse, RainResponse, HazeResponse, HealthResponse } from './types/weather';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 
-const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes auto-refresh
 
 function Dashboard() {
   const { isDark } = useTheme();
@@ -22,10 +18,17 @@ function Dashboard() {
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('all');
+
+  // Selected station ID for the location toggle panel
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
 
-  // Interval timer ref for 5-minute auto-refresh
+  // Whether location info panel is open (defaults to true for immediate location discovery, toggleable)
+  const [isPanelOpen, setIsPanelOpen] = useState<boolean>(true);
+
+  // Attribution modal state
+  const [isAttributionOpen, setIsAttributionOpen] = useState<boolean>(false);
+
+  // Auto-refresh interval ref
   const autoRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchAllData = useCallback(async (forceFresh = false) => {
@@ -61,7 +64,7 @@ function Dashboard() {
       }
 
       if (!hasSuccess) {
-        setErrorMessage('Unable to retrieve official Singapore weather data. Please check connection and try again.');
+        setErrorMessage('Unable to retrieve official Singapore weather data. Please check connection.');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Network failure';
@@ -71,7 +74,7 @@ function Dashboard() {
     }
   }, []);
 
-  // Initial load & 5-minute automated polling
+  // Initial fetch and 5-min polling
   useEffect(() => {
     fetchAllData();
 
@@ -86,138 +89,104 @@ function Dashboard() {
     };
   }, [fetchAllData]);
 
-  // Handle station selection & scroll to map
+  // Handle station selection toggle from map
   const handleSelectStation = (stationId: string | null) => {
     setSelectedStationId(stationId);
-  };
-
-  const handleFocusStation = (stationId: string) => {
-    setSelectedStationId(stationId);
-    const mapElement = document.getElementById('map-top');
-    if (mapElement) {
-      mapElement.scrollIntoView({ behavior: 'smooth' });
+    if (stationId) {
+      setIsPanelOpen(true);
     }
   };
+
+  const selectedStationName = useMemo(() => {
+    if (!selectedStationId) return null;
+    const w = weatherData?.stations.find((s) => s.id === selectedStationId);
+    if (w) return w.name;
+    const r = rainData?.stations.find((s) => s.id === selectedStationId);
+    if (r) return r.name;
+    return null;
+  }, [selectedStationId, weatherData, rainData]);
 
   const latestUpdatedAt =
     weatherData?.updatedAt || rainData?.updatedAt || hazeData?.updatedAt || null;
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-sans transition-colors duration-200 selection:bg-blue-500 selection:text-white ${
+      className={`h-screen max-h-screen overflow-hidden flex flex-col font-sans transition-colors duration-200 ${
         isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-800'
       }`}
     >
-      {/* Header */}
+      {/* Top Header with live metrics & toggles */}
       <Header
         updatedAt={latestUpdatedAt}
         isLoading={isLoading}
         onRefresh={() => fetchAllData(true)}
         health={healthData}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        summary={weatherData?.summary ?? null}
+        haze={hazeData}
+        isRaining={rainData?.isRaining ?? false}
+        rainingStationCount={rainData?.rainingStationCount ?? 0}
+        maxRainfall={rainData?.maxRainfall ?? 0}
+        isPanelOpen={isPanelOpen}
+        onTogglePanel={() => setIsPanelOpen(!isPanelOpen)}
+        selectedStationName={selectedStationName}
+        onOpenAttribution={() => setIsAttributionOpen(true)}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
-        {/* Error Alert if any */}
+      {/* Main Single-Viewport Map & Location Info Layout (Zero Page Scroll) */}
+      <div className="flex-1 flex flex-col md:flex-row relative overflow-hidden">
+        {/* Error notification banner if any */}
         {errorMessage && (
-          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 flex items-center justify-between gap-3 text-xs sm:text-sm animate-in fade-in">
-            <div className="flex items-center gap-2.5">
-              <AlertTriangle className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0" />
+          <div className="absolute top-2 left-4 right-4 z-40 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 flex items-center justify-between gap-3 text-xs shadow-md backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
               <span>{errorMessage}</span>
             </div>
             <button
               onClick={() => fetchAllData(true)}
-              className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium shrink-0 flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-medium shrink-0 flex items-center gap-1 cursor-pointer"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
+              <RefreshCw className="w-3 h-3" />
               Retry
             </button>
           </div>
         )}
 
-        {/* 1. Weather Summary Metrics */}
-        {(activeTab === 'all' || activeTab === 'forecast') && (
-          <WeatherSummaryCards
-            summary={weatherData?.summary ?? null}
-            haze={hazeData}
+        {/* Central Map Canvas - occupies all available space */}
+        <div className="flex-1 h-full w-full relative overflow-hidden flex flex-col">
+          <SingaporeMap
+            weatherStations={weatherData?.stations ?? []}
+            rainStations={rainData?.stations ?? []}
+            hazeRegions={hazeData?.regions ?? []}
+            twoHourAreas={weatherData?.forecast?.twoHourAreas ?? []}
+            selectedStationId={selectedStationId}
+            onSelectStation={handleSelectStation}
             isRaining={rainData?.isRaining ?? false}
-            rainingStationCount={rainData?.rainingStationCount ?? 0}
-            totalStationCount={rainData?.totalStationCount ?? 0}
-            maxRainfall={rainData?.maxRainfall ?? 0}
           />
-        )}
+        </div>
 
-        {/* 2. Main Interactive Singapore Weather Map */}
-        {(activeTab === 'all' || activeTab === 'rain') && (
-          <div id="map-top" className="scroll-mt-24 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  Singapore Weather & Rain Radar Map
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Interactive real-time spatial telemetry: rain gauges, temperatures, wind velocity & air quality
-                </p>
-              </div>
-            </div>
-
-            <SingaporeMap
+        {/* Location Info Panel / Drawer toggled from the map */}
+        {isPanelOpen && (
+          <div className="absolute md:relative bottom-0 right-0 left-0 md:left-auto w-full md:w-80 lg:w-96 max-h-[70vh] md:max-h-full h-auto md:h-full z-30 transition-all animate-in slide-in-from-right duration-200 shrink-0">
+            <LocationDetailPanel
+              selectedStationId={selectedStationId}
+              onSelectStation={handleSelectStation}
               weatherStations={weatherData?.stations ?? []}
               rainStations={rainData?.stations ?? []}
               hazeRegions={hazeData?.regions ?? []}
               twoHourAreas={weatherData?.forecast?.twoHourAreas ?? []}
-              selectedStationId={selectedStationId}
-              onSelectStation={handleSelectStation}
-              isRaining={rainData?.isRaining ?? false}
-            />
-          </div>
-        )}
-
-        {/* 3. Rainfall Section */}
-        {(activeTab === 'all' || activeTab === 'rain') && (
-          <div className="pt-2">
-            <RainfallSection
-              rainData={rainData}
-              onFocusStation={handleFocusStation}
-            />
-          </div>
-        )}
-
-        {/* 4. Haze & PSI Air Quality Section */}
-        {(activeTab === 'all' || activeTab === 'haze') && (
-          <div className="pt-2">
-            <HazeSection hazeData={hazeData} />
-          </div>
-        )}
-
-        {/* 5. Weather Stations List */}
-        {(activeTab === 'all' || activeTab === 'stations') && (
-          <div className="pt-2">
-            <WeatherStationsList
-              stations={weatherData?.stations ?? []}
-              onSelectStation={handleFocusStation}
-              selectedStationId={selectedStationId}
-            />
-          </div>
-        )}
-
-        {/* 6. Forecast Section */}
-        {(activeTab === 'all' || activeTab === 'forecast') && (
-          <div className="pt-2">
-            <ForecastSection
-              twoHourAreas={weatherData?.forecast?.twoHourAreas ?? []}
-              twoHourPeriod={weatherData?.forecast?.twoHourPeriod ?? null}
               twentyFourHour={weatherData?.forecast?.twentyFourHour ?? null}
               fourDay={weatherData?.forecast?.fourDay ?? []}
+              onClose={() => setIsPanelOpen(false)}
             />
           </div>
         )}
-      </main>
+      </div>
 
-      {/* Footer & Official Attribution */}
-      <Footer />
+      {/* Official Singapore Open Data License Modal */}
+      <AttributionModal
+        isOpen={isAttributionOpen}
+        onClose={() => setIsAttributionOpen(false)}
+      />
     </div>
   );
 }
